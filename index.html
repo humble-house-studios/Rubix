@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>World Record Desk</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- ======= The office ======= -->
+  <div class="office" aria-hidden="true">
+    <div class="window">
+      <div class="sky"></div>
+      <div class="city"></div>
+      <div class="mullion v"></div><div class="mullion h"></div>
+    </div>
+    <div class="poster">
+      <div class="poster-top">WORLD RECORD</div>
+      <div class="poster-time">2.51</div>
+      <div class="poster-sub">can you go sub-60?</div>
+    </div>
+    <div class="shelf">
+      <div class="trophy"><span></span></div>
+      <div class="mini-cube"></div>
+      <div class="mini-cube scrambled"></div>
+      <div class="books"><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="clock-wall"><div class="hand h"></div><div class="hand m"></div></div>
+    <div class="floor"></div>
+    <div class="desk">
+      <div class="desk-top"></div>
+      <div class="desk-front"></div>
+    </div>
+    <div class="lamp"><div class="lamp-head"></div><div class="lamp-arm"></div><div class="lamp-base"></div></div>
+    <div class="plant"><div class="leaf l1"></div><div class="leaf l2"></div><div class="leaf l3"></div><div class="pot"></div></div>
+    <div class="mug"><div class="steam"></div><div class="steam s2"></div></div>
+    <div class="desk-cube"></div>
+    <div class="sticky">practice<br/>F2L!!</div>
+    <div class="keyboard"><div class="keys"></div></div>
+    <div class="mouse"></div>
+  </div>
+
+  <!-- ======= The computer ======= -->
+  <div class="computer">
+    <div class="monitor">
+      <div class="screen" id="screen">
+        <header class="topbar">
+          <div class="brand"><span class="logo"></span>WR&nbsp;Desk</div>
+          <nav class="steps" id="steps">
+            <button data-step="watch" class="step active"><b>1</b> Watch</button>
+            <button data-step="replay" class="step"><b>2</b> The moves</button>
+            <button data-step="play" class="step"><b>3</b> Your turn</button>
+          </nav>
+          <div class="sysclock" id="sysclock">--:--</div>
+        </header>
+
+        <div class="desktop">
+          <aside class="records" id="records">
+            <h2>Top 10 World Records <small>3×3 single</small></h2>
+            <ol id="recordList"></ol>
+          </aside>
+
+          <main class="panel">
+            <section class="rec-head" id="recHead"></section>
+
+            <!-- STEP 1: WATCH -->
+            <section class="view" data-view="watch">
+              <div class="video-wrap" id="videoWrap"></div>
+              <div class="row between">
+                <div class="video-tools" id="videoTools"></div>
+                <button class="btn primary" data-goto="replay">Next: see the moves ▸</button>
+              </div>
+            </section>
+
+            <!-- STEP 2: REPLAY -->
+            <section class="view" data-view="replay" hidden>
+              <div class="split">
+                <div class="stage">
+                  <div class="cube-stage" id="replayCube"></div>
+                  <div class="stage-overlay" id="replayOverlay"></div>
+                </div>
+                <div class="side">
+                  <div class="timer" id="replayTimer">0.00</div>
+                  <div class="status" id="replayStatus">Loading solve…</div>
+                  <div class="row">
+                    <button class="btn primary" id="btnRealSpeed">▶ Real speed</button>
+                    <button class="btn" id="btnSlow">🐢 Slow-mo</button>
+                    <button class="btn" id="btnStep">Step ▸|</button>
+                  </div>
+                  <div class="source" id="replaySource"></div>
+                  <div class="alg-block">
+                    <label>Scramble</label>
+                    <div class="alg" id="replayScramble"></div>
+                    <label>Solution <span id="moveCount"></span></label>
+                    <div class="alg moves" id="replayMoves"></div>
+                  </div>
+                  <button class="btn primary wide" data-goto="play">Next: your turn ▸</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- STEP 3: PLAY -->
+            <section class="view" data-view="play" hidden>
+              <div class="split">
+                <div class="stage">
+                  <div class="cube-stage" id="playCube"></div>
+                  <div class="stage-overlay" id="playOverlay"></div>
+                </div>
+                <div class="side">
+                  <div class="timer" id="playTimer">0.00</div>
+                  <div class="status" id="playStatus"></div>
+                  <div class="race" id="race">
+                    <div class="lane"><span class="who" id="raceThem">Record</span><div class="bar"><i id="raceThemBar"></i></div></div>
+                    <div class="lane"><span class="who">You</span><div class="bar you"><i id="raceYouBar"></i></div></div>
+                  </div>
+                  <div class="row">
+                    <button class="btn primary" id="btnScramble">Scramble <kbd>Space</kbd></button>
+                    <button class="btn" id="btnReset">Reset</button>
+                    <button class="btn" id="btnGiveUp" hidden>Show me</button>
+                  </div>
+                  <div class="result" id="result" hidden></div>
+                  <div class="pad" id="pad"></div>
+                  <details class="help">
+                    <summary>Controls</summary>
+                    <p><b>Mouse/touch:</b> drag a sticker to turn that layer. Drag empty space to peek around.</p>
+                    <p><b>Keyboard:</b> <kbd>U</kbd> <kbd>D</kbd> <kbd>L</kbd> <kbd>R</kbd> <kbd>F</kbd> <kbd>B</kbd> turn clockwise, add <kbd>Shift</kbd> for counter-clockwise.
+                      <kbd>M</kbd> <kbd>E</kbd> <kbd>S</kbd> middle slices. Arrow keys or <kbd>X</kbd> <kbd>Y</kbd> <kbd>Z</kbd> rotate the whole cube.</p>
+                    <p>The timer starts on your first turn (cube rotations don't count), so take your time to inspect.</p>
+                  </details>
+                </div>
+              </div>
+            </section>
+          </main>
+        </div>
+        <div class="glare"></div>
+      </div>
+      <div class="bezel-logo">CUBETRON</div>
+    </div>
+    <div class="stand"></div>
+    <div class="base"></div>
+  </div>
+
+  <div id="confetti"></div>
+
+  <script src="vendor/three.min.js"></script>
+  <script src="vendor/cubejs-cube.js"></script>
+  <script src="vendor/cubejs-solve.js"></script>
+  <script src="js/records.js"></script>
+  <script src="js/cube3d.js"></script>
+  <script src="js/solver.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
