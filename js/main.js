@@ -121,7 +121,20 @@
     const tools = $("#videoTools");
     const searchUrl = "https://www.youtube.com/results?search_query=" +
       encodeURIComponent(`${r.name} ${r.time.toFixed(2)} Rubik's cube world record`);
-    if (id && forceForm !== true) {
+    if (id && forceForm !== true && window.NO_EMBED) {
+      // hosts that block video iframes: link out instead
+      wrap.innerHTML = `
+        <div class="no-video">
+          <div class="static" style="background-image:url(${staticTexture})"></div>
+          <div class="card">
+            <h3>📺 ${r.name} · ${r.time.toFixed(2)}</h3>
+            <p>This screen can't play YouTube here, so the video opens in a new tab. Come back for step 2.</p>
+            <a class="btn primary" href="https://www.youtube.com/watch?v=${id}" target="_blank" rel="noopener">▶ Watch the solve on YouTube</a>
+          </div>
+        </div>`;
+      tools.innerHTML = `<button class="linkish" id="changeVideo">Use a different video</button>`;
+      $("#changeVideo").onclick = () => renderVideo(true);
+    } else if (id && forceForm !== true) {
       const src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&rel=0&playsinline=1&modestbranding=1`;
       wrap.innerHTML = `<iframe src="${src}" title="${r.name} ${r.time} world record" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
       tools.innerHTML = `<span>🔁 Looping</span>
@@ -141,7 +154,7 @@
         <div class="static" style="background-image:url(${staticTexture})"></div>
         <div class="card">
           <h3>📺 Load the ${r.time.toFixed(2)} solve</h3>
-          <p>Find ${r.name}'s record on YouTube, copy the link, and paste it here. It'll loop on this screen.</p>
+          <p>Find ${r.name}'s record on YouTube, copy the link, and paste it here. ${window.NO_EMBED ? "The button above will open it." : "It'll loop on this screen."}</p>
           <a class="btn" href="${searchUrl}" target="_blank" rel="noopener">🔎 Search YouTube for it</a>
           <form class="link-form" id="linkForm">
             <input id="linkInput" placeholder="Paste a YouTube link…" autocomplete="off" />
