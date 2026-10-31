@@ -17,6 +17,28 @@ const COLORS := {
 
 ## Turning by swipe can be switched off (replays).
 var interactive := true
+## Controller turning (main.gd turns it on while a level is being played):
+## a glowing sticker on the face looking at you. D-pad / left stick moves it;
+## hold A and push a direction to turn that row or column that way, just like
+## swiping it. The right stick looks around (always).
+var pad_turns := false
+
+const PAD_LOOK := 2.6
+const PAD_DEAD := 0.5
+const PAD_DIRS := {
+	"ui_left": Vector2i(-1, 0), "ui_right": Vector2i(1, 0),
+	"ui_up": Vector2i(0, 1), "ui_down": Vector2i(0, -1),
+}
+## The sticker cursor, in screen terms on the front face: x right, y up, -1..1.
+var _cursor := Vector2i.ZERO
+var _cursor_shown := false
+var _a_held := false
+var _dir_held := {}
+## Right stick (events, not polling: in the office the pad only reaches this
+## game while you sit at it).
+var _look := Vector2.ZERO
+var _marker: MeshInstance3D
+var _marker_mat: StandardMaterial3D
 var yaw := 0.6
 var pitch := 0.5
 
@@ -62,6 +84,18 @@ func _ready() -> void:
 		m.albedo_color = COLORS[k]
 		m.roughness = 0.45
 		_mats[k] = m
+	_marker_mat = StandardMaterial3D.new()
+	_marker_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_marker_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_marker_mat.albedo_color = Color(1.0, 0.9, 0.3, 0.6)
+	_marker_mat.no_depth_test = true
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.86, 0.86)
+	_marker = MeshInstance3D.new()
+	_marker.mesh = quad
+	_marker.material_override = _marker_mat
+	_marker.visible = false
+	_vp.add_child(_marker)
 	_place_camera()
 
 
@@ -121,7 +155,11 @@ func _process(delta: float) -> void:
 		_pivot.basis = Basis(CubeModel.axis_vector(_anim.move.axis), _anim.move.quarters * PI / 2.0 * e)
 		if _anim.t >= 1.0:
 			_finish_anim()
+	if _look.length() > 0.2:
+		yaw -= _look.x * PAD_LOOK * delta
+		pitch = clampf(pitch - _look.y * PAD_LOOK * delta, -1.3, 1.3)
 	_place_camera()
+	_place_marker()
 
 
 func _start_anim(move: Dictionary, duration: float) -> void:
@@ -157,6 +195,118 @@ func _place_camera() -> void:
 
 
 # ---------------------------------------------------------------- input
+
+func _input(event: InputEvent) -> void:
+	if not is_visible_in_tree():
+		return
+	if (event is InputEventMouseButton or event is InputEventScreenTouch) and event.pressed:
+		_cursor_shown = false
+		return
+	if event is InputEventJoypadMotion:
+		if event.axis == JOY_AXIS_RIGHT_X:
+			_look.x = event.axis_value
+		elif event.axis == JOY_AXIS_RIGHT_Y:
+			_look.y = event.axis_value
+	if not pad_turns or not interactive:
+		return
+	if event is InputEventJoypadButton and event.button_index == JOY_BUTTON_A:
+		_a_held = event.pressed
+		_cursor_shown = true
+		get_viewport().set_input_as_handled()
+		return
+	var used := false
+	for action in PAD_DIRS:
+		if not event.is_action(action) or event is InputEventKey and event.is_echo():
+			continue
+		used = true
+		var on: bool = event.get_action_strength(action) > PAD_DEAD
+		var was: bool = _dir_held.get(action, false)
+		_dir_held[action] = on
+		if on and not was:
+			_pad_step(PAD_DIRS[action])
+	if used:
+		get_viewport().set_input_as_handled()
+
+
+## The player is steering the cube with a controller.
+func pad_active() -> bool:
+	return _cursor_shown and pad_turns and interactive
+
+
+## A direction on the pad: move the sticker cursor, or (A held) turn its row
+## or column that way.
+func _pad_step(dir: Vector2i) -> void:
+	if not _cursor_shown:
+		_cursor_shown = true
+		return
+	if not _a_held:
+		_cursor = Vector2i(clampi(_cursor.x + dir.x, -1, 1), clampi(_cursor.y + dir.y, -1, 1))
+		return
+	var hit := _cursor_hit()
+	var m := _swipe_move(hit, Vector2(dir.x, -dir.y) * 100.0)
+	if not m.is_empty():
+		turned.emit(m)
+
+
+## The face looking at the camera: [normal axis, sign, right axis+sign, up axis+sign].
+func _front() -> Dictionary:
+	var c := _cam.position.normalized()
+	var a := 0
+	for i in 3:
+		if absf(c[i]) > absf(c[a]):
+			a = i
+	var n := Vector3i.ZERO
+	n[a] = 1 if c[a] > 0 else -1
+	var center := Vector3(n) * SIZE
+	var o := _cam.unproject_position(center)
+	var right := Vector3i.ZERO
+	var up := Vector3i.ZERO
+	var best_x := 0.0
+	for i in 3:
+		if i == a:
+			continue
+		var t := Vector3.ZERO
+		t[i] = 1.0
+		var d := _cam.unproject_position(center + t) - o
+		if absf(d.x) > absf(best_x):
+			best_x = d.x
+			right = Vector3i.ZERO
+			right[i] = 1 if d.x > 0 else -1
+	for i in 3:
+		if i == a or right[i] != 0:
+			continue
+		var t := Vector3.ZERO
+		t[i] = 1.0
+		var d := _cam.unproject_position(center + t) - o
+		up[i] = 1 if d.y < 0 else -1
+	return {"n": n, "right": right, "up": up}
+
+
+## The cursor's sticker as a swipe hit: {point, normal, cubie}.
+func _cursor_hit() -> Dictionary:
+	var f := _front()
+	var cubie: Vector3i = f.n + f.right * _cursor.x + f.up * _cursor.y
+	var point := Vector3(cubie)
+	for i in 3:
+		if f.n[i] != 0:
+			point[i] = f.n[i] * SIZE
+	return {"point": point, "normal": f.n, "cubie": cubie}
+
+
+func _place_marker() -> void:
+	if _marker == null:
+		return
+	_marker.visible = _cursor_shown and pad_turns and interactive
+	if not _marker.visible:
+		return
+	var hit := _cursor_hit()
+	var n := Vector3(hit.normal)
+	_marker.position = hit.point + n * 0.03
+	var up_hint := Vector3.UP if absf(n.y) < 0.9 else Vector3.FORWARD
+	_marker.basis = Basis.looking_at(-n, up_hint)
+	var pulse := 0.45 + 0.25 * sin(Time.get_ticks_msec() / 150.0)
+	_marker_mat.albedo_color = Color(1.0, 0.95, 0.5, pulse + (0.25 if _a_held else 0.0))
+
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:

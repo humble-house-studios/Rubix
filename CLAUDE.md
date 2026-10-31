@@ -24,3 +24,7 @@ and handle git, builds and fixes yourself.
 - `engine/`: pure rules (`CubeModel`, `CubeMoves`, `CubeRecord`, `CubeGame`), tested headless.
 - `scenes/cube_view.gd`: the 3D cube, swipe-to-turn, turn animation queue.
 - `scenes/main.gd`: screens and flow. Saves stars to `user://cube_desk.cfg`.
+- Controller: `scenes/cube_pad.gd` (the shared button frame) drives the menus;
+  while a level is played it holds back and `cube_view.gd` takes over: D-pad
+  moves a sticker cursor, hold A + direction turns that row, right stick looks,
+  X undo, Y hint, B menu. Read the pad from events, never `Input` polling.

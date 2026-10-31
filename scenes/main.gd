@@ -41,6 +41,7 @@ var _coach: Label
 var _buttons: HBoxContainer
 var _overlay: ColorRect
 var _overlay_box: VBoxContainer
+var _pad: Node
 
 
 func _ready() -> void:
@@ -51,6 +52,10 @@ func _ready() -> void:
 		add_child(p)
 		_sfx[id] = p
 	_build_ui()
+	# Controller / arrow keys: a frame that moves between buttons, A presses.
+	# While a level is played the cube takes the D-pad and A instead.
+	_pad = preload("res://scenes/cube_pad.gd").new()
+	add_child(_pad)
 	get_viewport().size_changed.connect(_on_resized)
 	_on_resized()
 	_show_title()
@@ -232,6 +237,8 @@ func _process(delta: float) -> void:
 		_tick_replay(delta)
 	elif _game != null and not _overlay.visible:
 		_game.tick(delta)
+		if _game.moves == 0 and _game.level == 1:
+			_refresh_play()
 		_clock.text = "%.2f" % _game.time()
 		_clock.add_theme_color_override("font_color", COLOR_TEAL if _game.started else COLOR_INK)
 
@@ -242,6 +249,14 @@ func _open_overlay() -> void:
 	for c in _overlay_box.get_children():
 		c.queue_free()
 	_overlay.visible = true
+	_pad_play(false)
+
+
+## Hand the D-pad and A to the cube (playing a level) or to the menus.
+func _pad_play(on: bool) -> void:
+	_view.pad_turns = on
+	if _pad:
+		_pad.hold = on
 
 
 func _show_title() -> void:
@@ -256,10 +271,13 @@ func _show_title() -> void:
 	var watch := _button("WATCH THE 2.51", COLOR_TEAL, 24)
 	watch.custom_minimum_size.y = 110
 	watch.pressed.connect(_start_replay)
+	watch.set_meta("pad_button", JOY_BUTTON_Y)
 	_overlay_box.add_child(watch)
 	var play := _button("PLAY", COLOR_GOLD, 32)
 	play.custom_minimum_size.y = 120
 	play.pressed.connect(_show_levels)
+	play.set_meta("pad_button", JOY_BUTTON_START)
+	play.set_meta("pad_default", true)
 	_overlay_box.add_child(play)
 	var total := 0
 	for l in _stars:
@@ -292,6 +310,7 @@ func _show_levels() -> void:
 		_overlay_box.add_child(_label("Beat level 8 to face the real record scramble.", 14, COLOR_DIM))
 	var back := _button("BACK", COLOR_DIM, 20)
 	back.pressed.connect(_show_title)
+	back.set_meta("pad_button", JOY_BUTTON_B)
 	_overlay_box.add_child(back)
 
 
@@ -301,6 +320,7 @@ func _start_replay() -> void:
 	_overlay.visible = false
 	_game = null
 	_view.interactive = false
+	_pad_play(false)
 	var m := CubeModel.new()
 	m.apply_all(CubeMoves.parse_alg(CubeRecord.SCRAMBLE))
 	_view.show_model(m)
@@ -314,6 +334,7 @@ func _start_replay() -> void:
 	slow.pressed.connect(_restart_replay.bind(0.2))
 	var back := _button("BACK", COLOR_DIM, 18)
 	back.pressed.connect(_show_title)
+	back.set_meta("pad_button", JOY_BUTTON_B)
 	_set_buttons([real, slow, back])
 
 
@@ -360,15 +381,19 @@ func _start_level(level: int) -> void:
 	_view.interactive = true
 	_view.show_model(_game.model)
 	_overlay.visible = false
+	_pad_play(true)
 	_title.text = CubeGame.level_name(level)
 	_clock.text = "0.00"
 	_refresh_play()
 	var undo := _button("UNDO", COLOR_DIM, 20)
 	undo.pressed.connect(_undo)
+	undo.set_meta("pad_button", JOY_BUTTON_X)
 	var hint := _button("HINT +%ds" % int(hint_penalty), COLOR_GOLD, 20)
 	hint.pressed.connect(_hint)
+	hint.set_meta("pad_button", JOY_BUTTON_Y)
 	var back := _button("MENU", COLOR_RED, 20)
 	back.pressed.connect(_show_levels)
+	back.set_meta("pad_button", JOY_BUTTON_B)
 	_set_buttons([undo, hint, back])
 
 
@@ -377,7 +402,9 @@ func _refresh_play() -> void:
 		return
 	var n := CubeGame.level_moves(_game.level)
 	_info.text = "SCRAMBLED %d TURN%s   YOUR TURNS %d" % [n, "" if n == 1 else "S", _game.moves]
-	if _game.level == 1 and _game.moves == 0:
+	if _game.level == 1 and _game.moves == 0 and _view.pad_active():
+		_coach.text = "HOLD A AND PUSH A DIRECTION TO TURN THAT ROW.\nRIGHT STICK LOOKS AROUND."
+	elif _game.level == 1 and _game.moves == 0:
 		_coach.text = "SWIPE ACROSS A ROW TO TURN IT.\nDRAG THE BACKGROUND TO LOOK AROUND."
 	elif _game.level <= 2:
 		_coach.text = "STUCK? TAP HINT AND WATCH WHICH WAY IT TURNS."
@@ -438,6 +465,8 @@ func _on_solved() -> void:
 	if _game.level < CubeGame.BOSS:
 		var next := _button("NEXT LEVEL", COLOR_GOLD, 26)
 		next.pressed.connect(_start_level.bind(_game.level + 1))
+		next.set_meta("pad_default", true)
+		next.set_meta("pad_button", JOY_BUTTON_START)
 		_overlay_box.add_child(next)
 	else:
 		_overlay_box.add_child(_label("YOU SOLVED THE WORLD RECORD SCRAMBLE.", 18, COLOR_TEAL))
@@ -446,6 +475,7 @@ func _on_solved() -> void:
 	_overlay_box.add_child(again)
 	var menu := _button("LEVELS", COLOR_DIM, 20)
 	menu.pressed.connect(_show_levels)
+	menu.set_meta("pad_button", JOY_BUTTON_B)
 	_overlay_box.add_child(menu)
 	# Stars pop in one at a time.
 	for i in 3:
