@@ -42,6 +42,13 @@ var _buttons: HBoxContainer
 var _overlay: ColorRect
 var _overlay_box: VBoxContainer
 var _pad: Node
+var _pad_taught := false
+const PAD_PLAY_GUIDE := [
+	["DPAD", "Move the glowing sticker"],
+	["A", "Hold A + push: turn that row"],
+	["R", "Look around"],
+	["X", "Undo"], ["Y", "Hint"], ["B", "Menu"],
+]
 
 
 func _ready() -> void:
@@ -55,6 +62,7 @@ func _ready() -> void:
 	# Controller / arrow keys: a frame that moves between buttons, A presses.
 	# While a level is played the cube takes the D-pad and A instead.
 	_pad = preload("res://scenes/cube_pad.gd").new()
+	_pad.guide = [["DPAD", "Move"], ["A", "Press"], ["B", "Back"]]
 	add_child(_pad)
 	get_viewport().size_changed.connect(_on_resized)
 	_on_resized()
@@ -382,6 +390,10 @@ func _start_level(level: int) -> void:
 	_view.show_model(_game.model)
 	_overlay.visible = false
 	_pad_play(true)
+	# First level with a controller: how to turn the cube.
+	if _pad.active and not _pad_taught:
+		_pad_taught = true
+		_pad.show_guide(PAD_PLAY_GUIDE)
 	_title.text = CubeGame.level_name(level)
 	_clock.text = "0.00"
 	_refresh_play()
