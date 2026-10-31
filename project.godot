@@ -1,0 +1,32 @@
+; Cube Desk - a bite-size Rubik's cube game: watch the 2.51 world record,
+; then unscramble a ladder of levels. Lives on a desk in the office.
+; Scaling rule: 720x1280 base, canvas_items + expand. Phones lock to portrait,
+; desktop (Steam) opens a 1280x720 window, and the UI switches layout by screen shape.
+
+config_version=5
+
+[application]
+
+config/name="Cube Desk"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/size/window_width_override.pc=1280
+window/size/window_height_override.pc=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=1
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.05, 0.06, 0.11, 1)
