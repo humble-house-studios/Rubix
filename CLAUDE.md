@@ -24,6 +24,10 @@ and handle git, builds and fixes yourself.
 - `engine/`: pure rules (`CubeModel`, `CubeMoves`, `CubeRecord`, `CubeGame`), tested headless.
 - `scenes/cube_view.gd`: the 3D cube, swipe-to-turn, turn animation queue.
 - `scenes/main.gd`: screens and flow. Saves stars to `user://cube_desk.cfg`.
+- Record footage: WATCH plays `res://video/record.ogv` (real clip, Theora) when it
+  exists, else the 3D replay. Upload a clip to `video/source/` (+ optional
+  `trim.txt`, `credit.txt`); the `video.yml` workflow converts it, commits the
+  .ogv + `video/credit.gd`, and starts the deploy. Only clips we have permission for.
 - Controller: `scenes/cube_pad.gd` (the shared button frame) drives the menus;
   while a level is played it holds back and `cube_view.gd` takes over: D-pad
   moves a sticker cursor, hold A + direction turns that row, right stick looks,

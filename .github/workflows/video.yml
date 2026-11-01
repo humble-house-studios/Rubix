@@ -1,0 +1,62 @@
+# Upload a clip to video/source/ (GitHub app works) and this turns it into
+# video/record.ogv, the format Godot plays, then rebuilds the play link.
+# Optional: video/source/trim.txt ("12 31" = keep seconds 12 to 31) and
+# video/source/credit.txt (one line shown under the video).
+name: Video clip
+
+on:
+  push:
+    branches: [main]
+    paths: ["video/source/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Convert to Theora
+        shell: bash
+        run: |
+          src=$(ls -t video/source/*.{mp4,MP4,mov,MOV,m4v,webm,mkv} 2>/dev/null | head -1 || true)
+          if [ -z "$src" ]; then
+            echo "::notice::No clip in video/source yet."
+            exit 0
+          fi
+          trim=()
+          if [ -f video/source/trim.txt ]; then
+            read -r a b < video/source/trim.txt || true
+            [ -n "${a:-}" ] && trim+=(-ss "$a")
+            [ -n "${b:-}" ] && trim+=(-to "$b")
+          fi
+          # 640x360, letterboxed to 16:9, 30 fps: small enough for the web build.
+          ffmpeg -y -hide_banner -loglevel error "${trim[@]}" -i "$src" \
+            -vf "scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2,fps=30" \
+            -c:v libtheora -q:v 7 -c:a libvorbis -q:a 4 -ac 2 -ar 44100 video/record.ogv
+          credit=""
+          [ -f video/source/credit.txt ] && credit=$(head -1 video/source/credit.txt | tr -d '"\\\r')
+          printf 'extends RefCounted\n## Written by the Video clip workflow from video/source/credit.txt.\nconst TEXT := "%s"\n' "$credit" > video/credit.gd
+          echo "::notice::Made video/record.ogv ($(du -h video/record.ogv | cut -f1)) from $src"
+
+      - name: Commit and rebuild
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
+          git add video/record.ogv video/credit.gd 2>/dev/null || exit 0
+          git diff --cached --quiet && exit 0
+          git commit -m "Video clip: convert to record.ogv"
+          git push
+          # Pushes made by this workflow don't start other workflows, so ask
+          # for the play-link build directly.
+          gh workflow run deploy.yml --ref main

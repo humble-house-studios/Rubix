@@ -16,6 +16,11 @@ const SAVE_VERSION := 1
 const SFX := ["turn", "tap", "star", "solved", "beep"]
 ## Real turns per second in the record solve (32 turns / 2.51 s).
 const RECORD_TPS := 12.75
+## Real footage of the record. Drop a clip in video/source/ and the
+## "Video clip" workflow converts it to this file; without it, WATCH plays
+## the move-by-move 3D replay instead.
+const VIDEO_PATH := "res://video/record.ogv"
+const CREDIT_PATH := "res://video/credit.gd"
 
 var _font: Font = preload("res://fonts/press_start_2p.ttf")
 
@@ -30,6 +35,9 @@ var _history: Array = []
 ## Replay of the record: null when not watching.
 var _replay = null
 var _sfx := {}
+## The footage player while it's on screen.
+var _video: VideoStreamPlayer
+var _video_frame: AspectRatioContainer
 
 var _body: BoxContainer
 var _view: CubeView
@@ -83,6 +91,7 @@ func _on_resized() -> void:
 		get_window().content_scale_size = base
 	_body.vertical = not landscape
 	_view.size_flags_stretch_ratio = 1.5 if landscape else 1.6
+	_fit_video()
 
 
 func _build_ui() -> void:
@@ -254,6 +263,7 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------- title
 
 func _open_overlay() -> void:
+	_stop_video()
 	for c in _overlay_box.get_children():
 		c.queue_free()
 	_overlay.visible = true
@@ -278,7 +288,7 @@ func _show_title() -> void:
 	_overlay_box.add_child(_label("WORLD RECORD  %.2f\n%s" % [CubeRecord.TIME, CubeRecord.HOLDER], 20, COLOR_TEAL))
 	var watch := _button("WATCH THE 2.51", COLOR_TEAL, 24)
 	watch.custom_minimum_size.y = 110
-	watch.pressed.connect(_start_replay)
+	watch.pressed.connect(_start_video if has_video() else _start_replay)
 	watch.set_meta("pad_button", JOY_BUTTON_Y)
 	_overlay_box.add_child(watch)
 	var play := _button("PLAY", COLOR_GOLD, 32)
@@ -324,7 +334,74 @@ func _show_levels() -> void:
 
 # ---------------------------------------------------------------- watch
 
+func has_video() -> bool:
+	return ResourceLoader.exists(VIDEO_PATH)
+
+
+## The real footage, right on the screen. Ends on AGAIN / TURN BY TURN / BACK.
+func _start_video() -> void:
+	_replay = null
+	_game = null
+	_open_overlay()
+	_overlay_box.add_child(_label("%s  %.2f" % [CubeRecord.HOLDER, CubeRecord.TIME], 22, COLOR_GOLD))
+	_video_frame = AspectRatioContainer.new()
+	_video_frame.ratio = 16.0 / 9.0
+	_video_frame.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_video_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay_box.add_child(_video_frame)
+	_video = VideoStreamPlayer.new()
+	_video.stream = load(VIDEO_PATH)
+	_video.expand = true
+	_video.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_video.finished.connect(_play.bind("solved"))
+	_video_frame.add_child(_video)
+	_fit_video()
+	var credit := ""
+	if ResourceLoader.exists(CREDIT_PATH):
+		credit = str(load(CREDIT_PATH).get("TEXT"))
+	_overlay_box.add_child(_label(credit if credit != "" else CubeRecord.EVENT, 12, COLOR_DIM))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var again := _button("AGAIN", COLOR_TEAL, 18)
+	again.pressed.connect(_replay_video)
+	again.set_meta("pad_button", JOY_BUTTON_X)
+	var turns := _button("TURN BY\nTURN", COLOR_GOLD, 18)
+	turns.pressed.connect(_start_replay)
+	turns.set_meta("pad_default", true)
+	var back := _button("BACK", COLOR_DIM, 18)
+	back.pressed.connect(_show_title)
+	back.set_meta("pad_button", JOY_BUTTON_B)
+	for b in [again, turns, back]:
+		row.add_child(b)
+	_overlay_box.add_child(row)
+	_video.play()
+
+
+func _replay_video() -> void:
+	if is_instance_valid(_video):
+		_video.stop()
+		_video.play()
+
+
+## Largest 16:9 box that still leaves room for the title, credit and buttons.
+func _fit_video() -> void:
+	if not is_instance_valid(_video_frame):
+		return
+	var s := get_viewport_rect().size
+	_video_frame.custom_minimum_size.y = maxf(160.0, minf((s.x - 72.0) * 9.0 / 16.0, s.y - 380.0))
+
+
+func _stop_video() -> void:
+	if is_instance_valid(_video):
+		_video.stop()
+	if is_instance_valid(_video_frame):
+		_video_frame.queue_free()
+	_video = null
+	_video_frame = null
+
+
 func _start_replay() -> void:
+	_stop_video()
 	_overlay.visible = false
 	_game = null
 	_view.interactive = false
@@ -383,6 +460,7 @@ func _tick_replay(delta: float) -> void:
 # ---------------------------------------------------------------- play
 
 func _start_level(level: int) -> void:
+	_stop_video()
 	_replay = null
 	_game = CubeGame.new(level, randi(), hint_penalty)
 	_history.clear()
