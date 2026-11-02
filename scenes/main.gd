@@ -32,6 +32,11 @@ var hint_penalty := CubeGame.HINT_PENALTY
 var _stars := {}
 var _game: CubeGame
 var _history: Array = []
+## Watching the scramble being made (input waits). _watch_id cancels an old
+## playback when the level restarts.
+var _watching := false
+var _watch_id := 0
+var _level_seed := 0
 ## Replay of the record: null when not watching.
 var _replay = null
 var _sfx := {}
@@ -306,7 +311,7 @@ func _show_title() -> void:
 func _show_levels() -> void:
 	_open_overlay()
 	_overlay_box.add_child(_label("PICK A LEVEL", 36, COLOR_GOLD))
-	_overlay_box.add_child(_label("Each level is scrambled one more turn. Undo them all.", 16, COLOR_DIM))
+	_overlay_box.add_child(_label("Watch the scramble, then undo it. One more turn every level.", 16, COLOR_DIM))
 	var grid := GridContainer.new()
 	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", 12)
@@ -459,13 +464,16 @@ func _tick_replay(delta: float) -> void:
 
 # ---------------------------------------------------------------- play
 
-func _start_level(level: int) -> void:
+## seed: replay the same scramble (WATCH AGAIN); -1 = a new one.
+func _start_level(level: int, seed := -1) -> void:
 	_stop_video()
 	_replay = null
-	_game = CubeGame.new(level, randi(), hint_penalty)
+	_level_seed = seed if seed >= 0 else randi()
+	_game = CubeGame.new(level, _level_seed, hint_penalty)
 	_history.clear()
-	_view.interactive = true
-	_view.show_model(_game.model)
+	# Start solved, then watch the scramble being made: every level is
+	# "watch, then undo it", a memory puzzle anyone can learn.
+	_view.show_model(CubeModel.new())
 	_overlay.visible = false
 	_pad_play(true)
 	# First level with a controller: how to turn the cube.
@@ -478,24 +486,55 @@ func _start_level(level: int) -> void:
 	var undo := _button("UNDO", COLOR_DIM, 20)
 	undo.pressed.connect(_undo)
 	undo.set_meta("pad_button", JOY_BUTTON_X)
+	var again := _button("WATCH\nAGAIN", COLOR_TEAL, 16)
+	again.pressed.connect(func(): _start_level(_game.level, _level_seed))
 	var hint := _button("HINT +%ds" % int(hint_penalty), COLOR_GOLD, 20)
 	hint.pressed.connect(_hint)
 	hint.set_meta("pad_button", JOY_BUTTON_Y)
 	var back := _button("MENU", COLOR_RED, 20)
 	back.pressed.connect(_show_levels)
 	back.set_meta("pad_button", JOY_BUTTON_B)
-	_set_buttons([undo, hint, back])
+	_set_buttons([undo, again, hint, back])
+	_watch_scramble()
 
+
+## Play the scramble's turns one at a time on the solved cube.
+func _watch_scramble() -> void:
+	_watch_id += 1
+	var id := _watch_id
+	_watching = true
+	_view.interactive = false
+	var moves: Array = _game.scramble
+	var boss := _game.level >= CubeGame.BOSS
+	var dur := 0.12 if boss else (0.6 if _game.level <= 2 else 0.45)
+	var gap := 0.04 if boss else 0.35
+	await get_tree().create_timer(0.5).timeout
+	for i in moves.size():
+		if id != _watch_id or _game == null:
+			return
+		_coach.text = ("THE RECORD SCRAMBLE: %d TURNS" % moves.size()) if boss else "WATCH THE SCRAMBLE: TURN %d OF %d" % [i + 1, moves.size()]
+		_view.queue_turn(moves[i], dur)
+		_play("turn", 0.85 + 0.03 * i)
+		await get_tree().create_timer(dur + gap).timeout
+	if id != _watch_id:
+		return
+	_watching = false
+	_view.interactive = true
+	_refresh_play()
 
 func _refresh_play() -> void:
 	if _game == null:
 		return
 	var n := CubeGame.level_moves(_game.level)
 	_info.text = "SCRAMBLED %d TURN%s   YOUR TURNS %d" % [n, "" if n == 1 else "S", _game.moves]
+	if _watching:
+		return
 	if _game.level == 1 and _game.moves == 0 and _view.pad_active():
-		_coach.text = "HOLD A AND PUSH A DIRECTION TO TURN THAT ROW.\nRIGHT STICK LOOKS AROUND."
+		_coach.text = "TURN THAT ROW BACK: HOLD A AND PUSH THE OTHER WAY.\nRIGHT STICK LOOKS AROUND."
 	elif _game.level == 1 and _game.moves == 0:
-		_coach.text = "SWIPE ACROSS A ROW TO TURN IT.\nDRAG THE BACKGROUND TO LOOK AROUND."
+		_coach.text = "SWIPE THAT ROW BACK THE OTHER WAY.\nDRAG THE BACKGROUND TO LOOK AROUND."
+	elif _game.level < CubeGame.BOSS and _game.moves == 0:
+		_coach.text = "NOW UNDO IT: LAST TURN FIRST, EACH ONE BACKWARDS.\nFORGOT? WATCH AGAIN."
 	elif _game.level <= 2:
 		_coach.text = "STUCK? TAP HINT AND WATCH WHICH WAY IT TURNS."
 	elif _game.level >= CubeGame.BOSS:
@@ -505,7 +544,7 @@ func _refresh_play() -> void:
 
 
 func _on_turn(move: Dictionary) -> void:
-	if _game == null or _game.solved or _overlay.visible:
+	if _game == null or _game.solved or _overlay.visible or _watching:
 		return
 	_history.append(move)
 	_apply(move)
@@ -521,13 +560,13 @@ func _apply(move: Dictionary) -> void:
 
 
 func _undo() -> void:
-	if _game == null or _game.solved or _history.is_empty():
+	if _game == null or _game.solved or _history.is_empty() or _watching:
 		return
 	_apply(CubeMoves.inverse(_history.pop_back()))
 
 
 func _hint() -> void:
-	if _game == null or _game.solved:
+	if _game == null or _game.solved or _watching:
 		return
 	var m := _game.hint_move()
 	if m.is_empty():

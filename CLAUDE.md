@@ -1,7 +1,7 @@
 # Cube Desk: read before every change
 
 A simple, friendly Rubik's cube game (watch the 2.51 world record, then a ladder
-of 1-to-8-turn scrambles and the record scramble). It runs on its own and on a
+of 1-to-8-turn scrambles you watch being made, then undo, and the record scramble). It runs on its own and on a
 desk in the Killin' in Comedy office. Godot 4.3, GDScript only.
 
 Samuel builds from his phone: Claude writes and pushes the code, GitHub builds a
